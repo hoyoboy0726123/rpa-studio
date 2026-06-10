@@ -1,0 +1,54 @@
+{
+  "name": "desktop_demo_notepad",
+  "engine": "desktop",
+  "version": 1,
+  "variables": {
+    "phrase": "Hello from RPA Studio desktop engine"
+  },
+  "steps": [
+    {
+      "id": "s_wait_ready",
+      "action": "desktop.wait",
+      "label": "等記事本啟動",
+      "params": { "seconds": 1.5 },
+      "timeout_ms": 5000,
+      "on_error": "continue"
+    },
+    {
+      "id": "s_type",
+      "action": "desktop.type",
+      "label": "在編輯區輸入文字",
+      "target": {
+        "primary": {
+          "strategy": "uia",
+          "value": "{\"control_type\": \"Edit\"}"
+        },
+        "fallbacks": [
+          { "strategy": "uia", "value": "{\"control_type\": \"Document\"}" },
+          { "strategy": "uia", "value": "{\"class_name\": \"Edit\"}" }
+        ]
+      },
+      "params": { "text": "{phrase}" },
+      "timeout_ms": 10000,
+      "on_error": "abort"
+    },
+    {
+      "id": "s_read",
+      "action": "desktop.read",
+      "label": "讀回編輯區內容到變數 typed",
+      "target": {
+        "primary": {
+          "strategy": "uia",
+          "value": "{\"control_type\": \"Edit\"}"
+        },
+        "fallbacks": [
+          { "strategy": "uia", "value": "{\"control_type\": \"Document\"}" },
+          { "strategy": "uia", "value": "{\"class_name\": \"Edit\"}" }
+        ]
+      },
+      "params": { "var": "typed" },
+      "timeout_ms": 10000,
+      "on_error": "abort"
+    }
+  ]
+}

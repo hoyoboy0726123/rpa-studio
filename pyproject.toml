@@ -1,0 +1,42 @@
+# RPA Studio - project metadata & dependencies.
+# Works with both uv (`uv sync` / `uv pip install`) and plain pip
+# (`pip install -r requirements.txt` or `pip install .`).
+[project]
+name = "rpa-studio"
+version = "2.0.0"
+description = "Generic desktop RPA tool (PySide6) with web (Playwright) + desktop (pywinauto UIA) engines, recorder, multi-locator self-healing, OCR, vault, and scheduler."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [{ name = "Michael" }]
+keywords = ["rpa", "automation", "playwright", "pywinauto", "ocr", "pyside6"]
+
+# Keep this list in sync with requirements.txt (pip users read that file).
+dependencies = [
+    "PySide6>=6.6",
+    "playwright>=1.40",
+    "pywinauto>=0.6",
+    "pynput>=1.7",
+    "opencv-python>=4.9",
+    "pillow>=10.0",
+    "rapidocr-onnxruntime>=1.2",
+    "mss>=9.0",
+    "pyautogui>=0.9.54",
+    "APScheduler>=3.10",
+    "keyring>=24.0",
+    "cryptography>=42.0",
+    "pandas>=2.0",
+    "openpyxl>=3.1",
+    "requests>=2.31",
+    "msal>=1.28",
+    "pywin32>=306; sys_platform == 'win32'",
+]
+
+[project.urls]
+Documentation = "RPA_Studio_操作SOP.docx"
+
+# Treat this as an application (managed env), not a distributable library:
+# uv will create/sync .venv from the dependencies above without trying to
+# build the project itself.
+[tool.uv]
+package = false

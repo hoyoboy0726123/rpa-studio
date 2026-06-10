@@ -1,0 +1,27 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# --- virtual envs (pip venv + uv default .venv) ---
+venv/
+.venv/
+
+# --- local data / runtime artifacts ---
+*.db
+*.db-wal
+*.db-shm
+logs/
+recordings/*_anchors/
+
+# --- secrets (NEVER commit) ---
+.secrets*
+*.enc
+.vault_key
+.env
+.env.*
+
+# --- one-off build helper scripts (regenerated as needed) ---
+_*.py

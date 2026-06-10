@@ -1,0 +1,52 @@
+{
+  "name": "sample_web_login",
+  "engine": "web",
+  "version": 1,
+  "variables": {
+    "base_url": "https://example.com",
+    "report_month": "{data_yyyymm}"
+  },
+  "steps": [
+    {
+      "id": "s_goto",
+      "action": "web.goto",
+      "label": "開啟入口網站",
+      "target": null,
+      "params": { "url": "{base_url}/login" },
+      "on_error": "abort"
+    },
+    {
+      "id": "s_user",
+      "action": "web.fill",
+      "label": "輸入帳號",
+      "target": { "primary": { "strategy": "role", "value": "textbox:帳號" } },
+      "params": { "text": "service_account" },
+      "on_error": "abort"
+    },
+    {
+      "id": "s_pass",
+      "action": "web.fill",
+      "label": "輸入密碼(由 vault 注入)",
+      "target": { "primary": { "strategy": "css", "value": "#password" } },
+      "params": {},
+      "secret_ref": "bis_password",
+      "on_error": "abort"
+    },
+    {
+      "id": "s_login",
+      "action": "web.click",
+      "label": "點擊登入",
+      "target": { "primary": { "strategy": "text", "value": "登入" } },
+      "params": {},
+      "on_error": "abort"
+    },
+    {
+      "id": "s_table",
+      "action": "web.scrape_table",
+      "label": "抓取報表表格",
+      "target": { "primary": { "strategy": "css", "value": "table.report" } },
+      "params": { "result_var": "report_rows" },
+      "on_error": "continue"
+    }
+  ]
+}

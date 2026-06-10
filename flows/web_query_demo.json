@@ -1,0 +1,70 @@
+{
+  "name": "web_query_demo",
+  "engine": "web",
+  "version": 1,
+  "variables": {
+    "base_url": "http://127.0.0.1:8000"
+  },
+  "steps": [
+    {
+      "id": "goto_login",
+      "action": "web.goto",
+      "label": "開啟登入頁",
+      "params": { "url": "{base_url}/login" }
+    },
+    {
+      "id": "click_login",
+      "action": "web.click",
+      "label": "點登入按鈕",
+      "target": {
+        "primary": { "strategy": "role", "value": "button:登入" },
+        "fallbacks": [ { "strategy": "css", "value": "form button[type=submit]" } ]
+      }
+    },
+    {
+      "id": "wait_home",
+      "action": "web.wait_for",
+      "label": "等首頁出現",
+      "target": {
+        "primary": { "strategy": "testid", "value": "welcome" },
+        "fallbacks": [ { "strategy": "text", "value": "已登入" } ]
+      }
+    },
+    {
+      "id": "goto_query",
+      "action": "web.goto",
+      "label": "用序號查詢",
+      "params": { "url": "{base_url}/query?sn={serial}" }
+    },
+    {
+      "id": "scrape_status",
+      "action": "web.scrape_field",
+      "label": "抓產品狀態",
+      "target": {
+        "primary": { "strategy": "testid", "value": "status" },
+        "fallbacks": [ { "strategy": "css", "value": "#status" } ]
+      },
+      "params": { "var": "status" }
+    },
+    {
+      "id": "scrape_ship_date",
+      "action": "web.scrape_field",
+      "label": "抓出貨日",
+      "target": {
+        "primary": { "strategy": "testid", "value": "ship_date" },
+        "fallbacks": [ { "strategy": "css", "value": "#ship_date" } ]
+      },
+      "params": { "var": "ship_date" }
+    },
+    {
+      "id": "scrape_owner",
+      "action": "web.scrape_field",
+      "label": "抓負責人",
+      "target": {
+        "primary": { "strategy": "testid", "value": "owner" },
+        "fallbacks": [ { "strategy": "css", "value": "#owner" } ]
+      },
+      "params": { "var": "owner" }
+    }
+  ]
+}

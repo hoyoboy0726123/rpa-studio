@@ -1,0 +1,55 @@
+{
+  "name": "web_download_demo",
+  "engine": "web",
+  "version": 1,
+  "variables": {
+    "base_url": "http://127.0.0.1:8000",
+    "month": "2026-05"
+  },
+  "steps": [
+    {
+      "id": "goto_login",
+      "action": "web.goto",
+      "label": "開啟登入頁",
+      "params": { "url": "{base_url}/login" }
+    },
+    {
+      "id": "click_login",
+      "action": "web.click",
+      "label": "點登入按鈕",
+      "target": {
+        "primary": { "strategy": "role", "value": "button:登入" },
+        "fallbacks": [ { "strategy": "css", "value": "form button[type=submit]" } ]
+      }
+    },
+    {
+      "id": "wait_home",
+      "action": "web.wait_for",
+      "label": "等首頁出現",
+      "target": {
+        "primary": { "strategy": "testid", "value": "welcome" },
+        "fallbacks": [ { "strategy": "text", "value": "已登入" } ]
+      }
+    },
+    {
+      "id": "select_month",
+      "action": "web.select",
+      "label": "選擇月份",
+      "target": {
+        "primary": { "strategy": "testid", "value": "month" },
+        "fallbacks": [ { "strategy": "css", "value": "select[name=month]" } ]
+      },
+      "params": { "value": "{month}" }
+    },
+    {
+      "id": "download_export",
+      "action": "web.download",
+      "label": "觸發匯出並下載",
+      "target": {
+        "primary": { "strategy": "role", "value": "button:匯出" },
+        "fallbacks": [ { "strategy": "css", "value": "form[action='/export'] button" } ]
+      },
+      "params": { "var": "export_path" }
+    }
+  ]
+}
