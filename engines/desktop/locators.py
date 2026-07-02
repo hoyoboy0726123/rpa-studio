@@ -489,15 +489,37 @@ def heal(controller, target: dict, threshold: float = 0.7):
     return payload, score, detail
 
 
+def _prioritize(candidates, priority: str):
+    """依 priority 重排定位候選(穩定排序,不丟任何候選)。
+
+    priority == "cv" / "image":把 image(CV)策略移到最前,其餘維持原順序
+      → 先用影像錨點比對,UIA/座標只當退路。用於「UIA 會抓到寬鬆誤命中」的場景
+        (name/auto_id 在重播時會變,UIA 退到 control_type 第一個 → 點錯)。
+    其他值(含 "uia" / None / 未知):原順序回傳(UIA 優先,與舊版完全相同)。
+    """
+    if str(priority or "").lower() in ("cv", "image"):
+        imgs = [c for c in candidates if (c or {}).get("strategy") == "image"]
+        rest = [c for c in candidates if (c or {}).get("strategy") != "image"]
+        return imgs + rest
+    return candidates
+
+
 def resolve(controller, target, anchor_dir: str | None = None,
             report: dict | None = None, heal_enabled: bool = True,
-            heal_threshold: float = 0.7):
+            heal_threshold: float = 0.7, locator_priority: str = "uia"):
     """主入口:依 target 解析出可操作物件。
 
     fallback 順序(spec §2):primary 與 fallbacks 逐一嘗試,任一成功即用。
     各 strategy 內部還有自己的 fallback(uia 內含 uia→win32)。
       - uia / title / auto_id -> pywinauto wrapper
       - image / coord          -> ScreenPoint(螢幕點目標)
+
+    locator_priority:定位優先策略。
+      - "uia"(預設):維持錄製時的 [primary=uia] + fallbacks 順序(UIA 優先)。
+      - "cv" / "image":把 image(CV)策略提到最前,先用影像錨點比對,UIA/座標當退路。
+        適合 UIA 屬性在重播時會變、UIA 易寬鬆誤命中而點錯的場景。
+        注意:CV 需要 anchor_dir + 錄製時存的 anchor 圖才有效;缺圖時該層失敗,
+        會自動退回 UIA/座標(graceful)。
 
     anchor_dir:image 策略要找 anchor 檔的目錄(呼叫方傳入,通常 ctx.extra["anchor_dir"])。
 
@@ -513,13 +535,14 @@ def resolve(controller, target, anchor_dir: str | None = None,
         raise ValueError("target 缺少 primary locator")
 
     candidates = [target["primary"]] + list(target.get("fallbacks", []) or [])
+    candidates = _prioritize(candidates, locator_priority)
     last_err: Exception | None = None
     attempts: list = []
 
     # 日誌標頭:用 fingerprint 的元素名稱/型別當識別,方便事後對照是哪一步。
     _fp = (target.get("fingerprint") or {}).get("uia") or {}
     _label = _fp.get("name") or _fp.get("auto_id") or _fp.get("control_type") or "?"
-    _plog(f"=== resolve 元素[{_label}] 候選層: "
+    _plog(f"=== resolve 元素[{_label}] 候選層(priority={locator_priority}): "
           f"{[ (c or {}).get('strategy') for c in candidates ]} ===")
 
     for loc in candidates:

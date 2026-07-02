@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
-    QProgressBar, QPlainTextEdit,
+    QProgressBar, QPlainTextEdit, QCheckBox,
 )
 
 from core.schema import Flow
@@ -51,6 +51,18 @@ class RunPage(QWidget):
         bar.addWidget(self.btn_run)
         bar.addWidget(self.btn_stop)
         ctrl_card.body.addLayout(bar)
+
+        # ---- 定位選項:CV(影像)優先 ---- #
+        opt_row = QHBoxLayout()
+        opt_row.setSpacing(8)
+        self.chk_cv_first = QCheckBox("CV(影像)優先定位")
+        self.chk_cv_first.setToolTip(
+            "桌面流程用影像錨點優先比對,UIA / 座標當退路。\n"
+            "適合 UIA 屬性在重播時會變、UIA 易寬鬆誤命中而點錯的情況。\n"
+            "需要錄製時存的 anchor 圖;缺圖時該步會自動退回 UIA / 座標。")
+        opt_row.addWidget(self.chk_cv_first)
+        opt_row.addStretch(1)
+        ctrl_card.body.addLayout(opt_row)
 
         self.progress = QProgressBar()
         self.progress.setValue(0)
@@ -146,7 +158,11 @@ class RunPage(QWidget):
 
         self.pause_banner.setVisible(False)
 
-        self.worker = RunWorker(flow, self.store, self.vault)
+        extra = {}
+        if self.chk_cv_first.isChecked():
+            extra["locator_priority"] = "cv"
+            self._append("定位模式:CV(影像)優先(UIA / 座標當退路)。")
+        self.worker = RunWorker(flow, self.store, self.vault, extra=extra)
         self.worker.progress.connect(self._on_progress)
         self.worker.log.connect(self._append)
         self.worker.finished.connect(self._on_finished)

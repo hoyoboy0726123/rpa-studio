@@ -48,6 +48,13 @@ def _heal_opts(ctx):
     return bool(enabled), threshold
 
 
+def _locator_priority(ctx):
+    """從 ctx.extra 取定位優先策略(預設 'uia';'cv'/'image' → CV 影像優先)。"""
+    extra = (getattr(ctx, "extra", None) or {})
+    p = str(extra.get("locator_priority", "uia") or "uia").lower()
+    return "cv" if p in ("cv", "image") else "uia"
+
+
 def _record_heal(ctx, step, report: dict):
     """若這次解析走自癒(strategy=='heal'),記進 store 供人審核;只記 log 不改檔。
 
@@ -78,7 +85,8 @@ def _resolve(ctx, target, step=None):
     enabled, threshold = _heal_opts(ctx)
     w = locators.resolve(ctx.engine, target, anchor_dir=_anchor_dir(ctx),
                          report=report, heal_enabled=enabled,
-                         heal_threshold=threshold)
+                         heal_threshold=threshold,
+                         locator_priority=_locator_priority(ctx))
     if step is not None:
         _record_heal(ctx, step, report)
     return w
