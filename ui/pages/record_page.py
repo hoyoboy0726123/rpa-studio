@@ -130,15 +130,20 @@ class RecordWorker(QThread):
         self._out_path = os.path.join(anchor_dir, f"{flow_name}.json")
         # desktop 錄製器 start() 是非阻塞(背景 listener),需自己等到使用者要求停止。
         self._stop_requested = threading.Event()
+        # web codegen 中斷用:F9 / 停止鈕設它 → record_web 終止 codegen。
+        self._web_stop = threading.Event()
+        # 全域 F9 熱鍵:錄製期間(不論前景視窗)按 F9 都能停止 web / desktop。
+        self._hotkey = None
 
     def stop_recording(self):
-        """要求停止錄製(F9 / 停止鈕)。
+        """要求停止錄製(F9 / 停止鈕)。對 web 與 desktop 都有效。
 
         - desktop:set 旗標讓 _run_desktop 的等待迴圈退出,再呼叫 recorder.stop()。
-        - web:codegen 由使用者關閉視窗結束,這裡只記 log。
+        - web:set _web_stop → record_web 終止 codegen 進程,讀回已錄步驟。
         """
         self.log.emit("已要求停止錄製…")
         self._stop_requested.set()
+        self._web_stop.set()
         rec = self._recorder
         # 真實 DesktopRecorder 帶 stop_event(F9 也會 set);提前 set 讓 listener 收手。
         ev = getattr(rec, "stop_event", None)
@@ -149,6 +154,15 @@ class RecordWorker(QThread):
                 pass
 
     def run(self):  # QThread 進入點
+        # 註冊全域 F9:錄製期間即使前景在瀏覽器 / 別的 app,按 F9 也能停止一切。
+        # (desktop recorder 內部另有自己的 F9 listener,兩者都只是觸發停止,無害。)
+        try:
+            from core.hotkey import GlobalHotkey
+            self._hotkey = GlobalHotkey(on_trigger=self.stop_recording,
+                                        log=self.log.emit)
+            self._hotkey.register()
+        except Exception:  # noqa: BLE001
+            self._hotkey = None
         try:
             if self.engine == "web":
                 self._run_web()
@@ -156,6 +170,13 @@ class RecordWorker(QThread):
                 self._run_desktop()
         except Exception as e:  # noqa: BLE001
             self.failed.emit(self._friendly_err(e))
+        finally:
+            if self._hotkey is not None:
+                try:
+                    self._hotkey.unregister()
+                except Exception:  # noqa: BLE001
+                    pass
+                self._hotkey = None
 
     # ---- web:Playwright codegen ---- #
     def _run_web(self):
@@ -168,10 +189,15 @@ class RecordWorker(QThread):
             self.failed.emit(self._friendly_err(e))
             return
 
-        self.log.emit(f"啟動 web 錄製器(codegen),目標 URL:{self.url or '(未指定)'}")
+        self.log.emit(f"啟動 web 錄製器(codegen),目標 URL:{self.url or '(未指定)'}"
+                      f";按 F9 或「停止」可隨時結束。")
         os.makedirs(self.anchor_dir, exist_ok=True)
-        # record_web 阻塞直到使用者關閉 codegen 視窗,回傳 flow JSON 路徑。
-        path = factory(self.url, self._out_path)
+        # record_web 阻塞直到使用者關閉 codegen 視窗,或 F9/停止鈕設了 _web_stop
+        # → 終止 codegen 並讀回已錄步驟。舊版假 factory 可能不吃 stop_event,失敗退回。
+        try:
+            path = factory(self.url, self._out_path, stop_event=self._web_stop)
+        except TypeError:
+            path = factory(self.url, self._out_path)
         flow_dict = self._load_flow_dict(path)
         self.recorded.emit(flow_dict)
 
