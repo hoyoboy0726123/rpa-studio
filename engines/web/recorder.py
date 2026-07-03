@@ -285,10 +285,59 @@ def _step_to_dict(step: Step) -> dict:
 # --------------------------------------------------------------------------- #
 # 對外:啟動 codegen 互動錄製 → 存 flow JSON
 # --------------------------------------------------------------------------- #
-def _run_codegen(url: str, tmp_py: str, timeout: float | None = None) -> None:
+def _terminate_codegen(proc) -> None:
+    """終止 codegen 進程(含子進程樹)。Windows 用 taskkill /T,其餘用 terminate。
+
+    F9 停止 web 錄製時呼叫。codegen 會**即時**把已錄動作寫進 -o 檔,所以即使
+    是強制終止,tmp_py 仍會保有終止前錄到的步驟(讀回時就是那些)。
+    """
+    if proc is None or proc.poll() is not None:
+        return
+    try:
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                           capture_output=True)
+        else:
+            proc.terminate()
+    except Exception:  # noqa: BLE001
+        try:
+            proc.terminate()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _wait_or_stop(proc, stop_event=None, poll: float = 0.2,
+                  timeout: float | None = None) -> None:
+    """等 codegen 進程結束(使用者關閉視窗),或 stop_event 被設(F9)→ 終止它。
+
+    抽成獨立函式以便單元測試(餵任一 Popen + 事件即可驗中斷行為,不需真 codegen)。
+    """
+    import time as _time
+    deadline = None if timeout is None else (_time.time() + timeout)
+    while True:
+        try:
+            proc.wait(timeout=poll)
+            return                      # 正常結束(關閉視窗)
+        except subprocess.TimeoutExpired:
+            pass
+        if stop_event is not None and stop_event.is_set():
+            _terminate_codegen(proc)    # F9:終止 codegen,已錄步驟留在 -o 檔
+            try:
+                proc.wait(timeout=5)
+            except Exception:  # noqa: BLE001
+                pass
+            return
+        if deadline is not None and _time.time() > deadline:
+            _terminate_codegen(proc)
+            return
+
+
+def _run_codegen(url: str, tmp_py: str, timeout: float | None = None,
+                 stop_event=None) -> None:
     """呼叫 `playwright codegen --target python -o <tmp_py> <url>`。
 
-    使用者實際操作、關閉視窗後 codegen 才結束並寫出 tmp_py。
+    使用者實際操作、關閉視窗後 codegen 才結束並寫出 tmp_py;
+    或按 F9(stop_event 被設)時提前終止 codegen(已錄步驟仍在 tmp_py)。
     優先用 `python -m playwright`(綁定當前直譯器),退到 PATH 上的 `playwright`。
     """
     cmds = [
@@ -299,24 +348,28 @@ def _run_codegen(url: str, tmp_py: str, timeout: float | None = None) -> None:
     last_err: Exception | None = None
     for cmd in cmds:
         try:
-            subprocess.run(cmd, check=True, timeout=timeout)
-            return
+            proc = subprocess.Popen(cmd)
         except FileNotFoundError as e:
             last_err = e
             continue
+        _wait_or_stop(proc, stop_event=stop_event, timeout=timeout)
+        return
     raise RuntimeError(
         f"無法啟動 playwright codegen(請先 `pip install playwright` 並 "
         f"`playwright install chromium`):{last_err}")
 
 
 def record_web(url: str, out_flow_path: str, flow_name: str | None = None,
-               timeout: float | None = None) -> str:
+               timeout: float | None = None, stop_event=None) -> str:
     """啟動 Playwright codegen 錄 web 操作,轉成 flow JSON 存檔並回傳路徑。
 
     流程:
-      1. codegen 開瀏覽器到 url,使用者操作 → 關閉視窗 → codegen 寫出 tmp python。
+      1. codegen 開瀏覽器到 url,使用者操作 → 關閉視窗(或按 F9)→ codegen 寫出 tmp python。
       2. 讀 tmp python → parse_codegen_python → Flow dict。
       3. 存成 out_flow_path 並回傳。
+
+    stop_event:threading.Event。被設(F9 / 停止鈕)時提前終止 codegen,
+    讀回終止前已錄到的步驟。不給則維持舊行為(等使用者關閉視窗才結束)。
 
     注意:此函式需要真實桌面 + 已安裝 playwright,無法在 headless CI 驗證;
     純轉譯邏輯請見 parse_codegen_python(可單測)。
@@ -327,7 +380,7 @@ def record_web(url: str, out_flow_path: str, flow_name: str | None = None,
     tmp_fd, tmp_py = tempfile.mkstemp(suffix="_codegen.py", prefix="rpa_")
     os.close(tmp_fd)
     try:
-        _run_codegen(url, tmp_py, timeout=timeout)
+        _run_codegen(url, tmp_py, timeout=timeout, stop_event=stop_event)
         with open(tmp_py, "r", encoding="utf-8") as fh:
             code = fh.read()
     finally:
